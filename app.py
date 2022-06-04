@@ -9,6 +9,8 @@ import seaborn as sns
 from functionforDownloadButtons import download_button
 import json
 import numpy as np
+import string
+import re
 
 st.set_page_config(
     page_title="Ctrl+inFer",
@@ -60,11 +62,11 @@ with st.form(key="my_form"):
     with c1:
         Threshold = st.slider(
             "Keyword similarity threshold",
-            value=0.5,
+            value=0.7,
             min_value=0.0,
             max_value=1.0,
             step=0.1,
-            help="""The higher the setting, the more similar the keywords.""",
+            help="""Higher values scan for more similar synonyms.""",
         )
 
     with c2:
@@ -72,14 +74,26 @@ with st.form(key="my_form"):
             "Paste your text below (1 word)",
             height=50,
         )
+        
         doc = st.text_area(
             "Paste your text below (max 500 words)",
             height=510,
         )
+        
+        MAX_KEYWORDS = 1
+        res = len(keyword.split())
+        if res > MAX_KEYWORDS:
+            st.warning(
+                "⚠️ Your keyword contains "
+                + str(res)
+                + " words."
+                + " Only the first word will be reviewed."
+            )
 
+            keyword = ' '.join(keyword.split()[:MAX_KEYWORDS])
+        
         MAX_WORDS = 500
-        import re
-        res = len(re.findall(r"\w+", doc))
+        res = len(doc.split())
         if res > MAX_WORDS:
             st.warning(
                 "⚠️ Your text contains "
@@ -88,18 +102,25 @@ with st.form(key="my_form"):
                 + " Only the first 500 words will be reviewed."
             )
 
-            doc = doc[:MAX_WORDS]
+            doc = ' '.join(doc.split()[:MAX_WORDS])
 
         submit_button = st.form_submit_button(label="Flag all the similar keywords")
 
 if not submit_button:
     st.stop()
 
+def space_before(x):
+    if x[0] in string.punctuation.replace('(', '').replace('-', ''):
+        return ''
+    else:
+        return ' '
+
 def check_threshold(x, word, threshold):
     if cosine_similarity(x.vector.reshape(1, -1), word.reshape(1, -1)) > Threshold:
-        return ((str(x) + ' ', ''))
+        # could change this to not always put a space between - don't want a space between a word and puncutation
+        return ((space_before(str(x)) + str(x), ''))
     else:
-        return (str(x) + ' ')
+        return (space_before(str(x)) + str(x))
 
 def find_keywords(doc, keyword, Threshold):
     nlp = spacy.load('en_core_web_md')
@@ -118,6 +139,7 @@ def highlight_keywords(doc, keyword, Threshold):
     word = nlp(keyword).vector
     
     highlighted = [check_threshold(x, word, Threshold) for x in doc]
+    highlighted[0] = highlighted[0].lstrip()
     
     return (highlighted)
 
